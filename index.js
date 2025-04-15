@@ -1,6 +1,8 @@
+require("dotenv").config()
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+const Person = require('./models/persons')
 
 const app = express()
 morgan.token('body', (req, res) => {
@@ -35,7 +37,11 @@ let persons = [
 ]
 
 app.get('/api/persons', (request, response)=>{
-response.json(persons)
+Person.find({}).then(
+  result =>{
+    response.json(result)
+  }
+  )
 })
 
 app.get('/api/persons/:id', (request, response)=>{
@@ -48,10 +54,15 @@ response.json(person)
 })
 
 app.delete('/api/persons/:id', (request, response)=>{
-const id = request.params.id
-persons = persons.filter(person => person.id !== id)
-
-response.status(204).end()
+Person.findById(request.params.id).then(person=>{
+  if(!person){
+    response.status(404).end()
+  }
+  response.json(person)
+}).catch(error=>{
+  console.log(error)
+  response.status(400).send({error:"malformatted ID"})
+})
 })
 
 
@@ -65,19 +76,25 @@ if (!person.name) {
 return response.status(400).json({
 error: 'name missing'
 })}
-if (persons.find(p => p.name == person.name)){
-return response.status(404).json({ error: 'name must be unique' })
-} else if (!person.number){
+Person.findById(request.params.name).then(person=>{
+  if(person)response.status(404).json(
+      { error: 'name must be unique' }
+    )
+  }
+)
+if (!person.number){
 return response.status(400).json({error: 'number missing'})
 }
 
-const personAdd = {
+const personAdd = new Person({
 id: genID(),
 name: person.name,
 number: person.number
-}
+})
 
-persons = persons.concat(personAdd)
+personAdd.save().then(result=>{
+  console.log("added ", result.name, " number ", result.number, "to phonebook")
+})
 response.json(personAdd)
 })
 /*
@@ -86,7 +103,7 @@ response.json(personAdd)
 
 
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT
 app.listen(PORT, ()=>{
 console.log(`Server running on port ${PORT}`)
 })
